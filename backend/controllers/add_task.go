@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
 
 var GlobalJobQueue *JobQueue
@@ -61,10 +62,29 @@ func AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate dependencies
-		if err := utils.ValidateDependencies(depends, ""); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
-			return
+		// Validate dependencies with circular dependency detection
+		origin := os.Getenv("CONTAINER_ORIGIN")
+		existingTasks, err := tw.FetchTasksFromTaskwarrior(email, encryptionSecret, origin, uuid)
+		if err != nil {
+			// If we can't fetch tasks, use basic validation only
+			if err := utils.ValidateDependencies(depends, ""); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
+				return
+			}
+		} else {
+			taskDeps := make([]utils.TaskDependency, len(existingTasks))
+			for i, task := range existingTasks {
+				taskDeps[i] = utils.TaskDependency{
+					UUID:    task.UUID,
+					Depends: task.Depends,
+					Status:  task.Status,
+				}
+			}
+
+			if err := utils.ValidateCircularDependencies(depends, "", taskDeps); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
+				return
+			}
 		}
 		var dueDateStr string
 		if dueDate != nil && *dueDate != "" {

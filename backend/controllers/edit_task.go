@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
 
 // EditTaskHandler godoc
@@ -61,10 +62,30 @@ func EditTaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate dependencies
-		if err := utils.ValidateDependencies(depends, uuid); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
-			return
+		// Validate dependencies with circular dependency detection
+		origin := os.Getenv("CONTAINER_ORIGIN")
+		existingTasks, err := tw.FetchTasksFromTaskwarrior(email, encryptionSecret, origin, uuid)
+		if err != nil {
+			// If we can't fetch tasks, use basic validation only
+			if err := utils.ValidateDependencies(depends, uuid); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
+				return
+			}
+		} else {
+			// Convert models.Task to utils.TaskDependency
+			taskDeps := make([]utils.TaskDependency, len(existingTasks))
+			for i, task := range existingTasks {
+				taskDeps[i] = utils.TaskDependency{
+					UUID:    task.UUID,
+					Depends: task.Depends,
+					Status:  task.Status,
+				}
+			}
+
+			if err := utils.ValidateCircularDependencies(depends, uuid, taskDeps); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid dependencies: %v", err), http.StatusBadRequest)
+				return
+			}
 		}
 
 		logStore := models.GetLogStore()

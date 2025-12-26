@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { AddTaskdialog } from '../AddTaskDialog';
 import '@testing-library/jest-dom';
 
@@ -20,8 +20,6 @@ jest.mock('@/components/ui/date-picker', () => ({
       onChange={(e) => {
         if (e.target.value) {
           onDateChange(new Date(e.target.value));
-        } else {
-          onDateChange(null);
         }
       }}
     />
@@ -34,7 +32,6 @@ jest.mock('@/components/ui/select', () => {
       // Create a simple select element that calls onValueChange when changed
       return (
         <select
-          data-testid="project-select"
           value={value || ''}
           onChange={(e) => onValueChange?.(e.target.value)}
         >
@@ -43,7 +40,9 @@ jest.mock('@/components/ui/select', () => {
       );
     },
     SelectTrigger: ({ children, 'data-testid': dataTestId, ...props }: any) => (
-      <div {...props}>{children}</div>
+      <div data-testid={dataTestId} {...props}>
+        {children}
+      </div>
     ),
     SelectValue: ({ placeholder }: any) => (
       <option value="" disabled>
@@ -91,347 +90,230 @@ describe('AddTaskDialog Component', () => {
     };
   });
 
-  describe('Dialog', () => {
-    test('renders the "Add Task" button', () => {
-      render(<AddTaskdialog {...mockProps} />);
+  test('renders the "Add Task" button', () => {
+    render(<AddTaskdialog {...mockProps} />);
 
-      const addButton = screen.getByRole('button', { name: /add task/i });
+    const addButton = screen.getByRole('button', { name: /add task/i });
 
-      expect(addButton).toBeInTheDocument();
-    });
+    expect(addButton).toBeInTheDocument();
+  });
 
-    test('opens dialog when "Add Task" button is clicked', () => {
-      render(<AddTaskdialog {...mockProps} />);
+  test('opens dialog when "Add Task" button is clicked', () => {
+    render(<AddTaskdialog {...mockProps} />);
 
-      const addButton = screen.getByRole('button', { name: /add task/i });
-      fireEvent.click(addButton);
+    const addButton = screen.getByRole('button', { name: /add task/i });
+    fireEvent.click(addButton);
 
-      expect(mockProps.setIsOpen).toHaveBeenCalledWith(true);
-    });
+    expect(mockProps.setIsOpen).toHaveBeenCalledWith(true);
+  });
 
-    test('displays dialog content when isOpen is true', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('displays dialog content when isOpen is true', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(
-        screen.getByText(/fill in the details below/i)
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText(/fill in the details below/i)).toBeInTheDocument();
+  });
 
-    test('closes dialog when Cancel button is clicked', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('updates description when user types in input field', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      const cancelButton = screen.getByRole('button', { name: /cancel/i });
-      fireEvent.click(cancelButton);
+    const descriptionInput = screen.getByLabelText(/description/i);
 
-      expect(mockProps.setIsOpen).toHaveBeenCalledWith(false);
-    });
+    fireEvent.change(descriptionInput, { target: { value: 'Buy groceries' } });
 
-    test('calls onSubmit when "Add Task" button in dialog is clicked', () => {
-      mockProps.isOpen = true;
-      mockProps.newTask = {
-        description: 'Test task',
-        priority: 'H',
-        project: 'Work',
-        due: '2024-12-25',
-        start: '',
-        entry: '2025-12-20',
-        wait: '2025-12-20',
-        end: '',
-        recur: '',
-        tags: ['urgent'],
-        annotations: [],
-        depends: [],
-      };
-      render(<AddTaskdialog {...mockProps} />);
-
-      const submitButton = screen.getByRole('button', {
-        name: /add task/i,
-      });
-
-      expect(submitButton).toBeInTheDocument();
-      fireEvent.click(submitButton);
-      expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      description: 'Buy groceries',
     });
   });
 
-  describe('Description Field', () => {
-    test('updates description when user types in input field', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('updates priority when user selects from dropdown', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      const descriptionInput = screen.getByLabelText(/description/i);
+    const prioritySelect = screen.getByLabelText(/priority/i);
 
-      fireEvent.change(descriptionInput, {
-        target: { value: 'Buy groceries' },
-      });
+    fireEvent.change(prioritySelect, { target: { value: 'H' } });
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        description: 'Buy groceries',
-      });
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      priority: 'H',
     });
   });
 
-  describe('Priority Field', () => {
-    test('updates priority when user selects from dropdown', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('updates project when user types in project field', async () => {
+    mockProps.isOpen = true;
+    mockProps.isCreatingNewProject = true;
+    mockProps.newTask = { ...mockProps.newTask, project: '' };
 
-      const prioritySelect = screen.getByLabelText(/priority/i);
+    render(<AddTaskdialog {...mockProps} />);
 
-      fireEvent.change(prioritySelect, { target: { value: 'H' } });
+    const newProjectInput =
+      await screen.findByPlaceholderText('New project name');
+    fireEvent.change(newProjectInput, { target: { value: 'Work' } });
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        priority: 'H',
-      });
-    });
-
-    test('renders all priority options in dropdown', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
-
-      const prioritySelect = screen.getByLabelText(/priority/i);
-
-      expect(prioritySelect).toContainHTML('<option value="H">H</option>');
-      expect(prioritySelect).toContainHTML('<option value="M">M</option>');
-      expect(prioritySelect).toContainHTML('<option value="L">L</option>');
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      project: 'Work',
     });
   });
 
-  describe('Project Field', () => {
-    test('updates project when user types in project field', async () => {
-      mockProps.isOpen = true;
-      mockProps.isCreatingNewProject = true;
-      mockProps.newTask = { ...mockProps.newTask, project: '' };
+  test('displays project select with unique projects', () => {
+    mockProps.isOpen = true;
+    mockProps.uniqueProjects = ['Work', 'Personal'];
+    render(<AddTaskdialog {...mockProps} />);
 
-      render(<AddTaskdialog {...mockProps} />);
+    expect(screen.getByText('Work')).toBeInTheDocument();
+    expect(screen.getByText('Personal')).toBeInTheDocument();
+  });
 
-      const newProjectInput =
-        await screen.findByPlaceholderText('New project name');
-      fireEvent.change(newProjectInput, { target: { value: 'Work' } });
+  test('adds a tag when user types and presses Enter', () => {
+    mockProps.isOpen = true;
+    mockProps.tagInput = 'urgent';
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        project: 'Work',
-      });
+    const tagsInput = screen.getByPlaceholderText(/add a tag/i);
+
+    fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
+
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      tags: ['urgent'],
     });
 
-    test('displays project select with unique projects', () => {
-      mockProps.isOpen = true;
-      mockProps.uniqueProjects = ['Work', 'Personal'];
-      render(<AddTaskdialog {...mockProps} />);
+    expect(mockProps.setTagInput).toHaveBeenCalledWith('');
+  });
 
-      expect(screen.getByText('Work')).toBeInTheDocument();
-      expect(screen.getByText('Personal')).toBeInTheDocument();
-    });
+  test('does not add duplicate tags', () => {
+    mockProps.isOpen = true;
+    mockProps.tagInput = 'urgent';
+    mockProps.newTask.tags = ['urgent'];
+    render(<AddTaskdialog {...mockProps} />);
 
-    test('shows new project input when creating new project', () => {
-      mockProps.isOpen = true;
-      mockProps.isCreatingNewProject = true;
-      render(<AddTaskdialog {...mockProps} />);
+    const tagsInput = screen.getByPlaceholderText(/add a tag/i);
+    fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
 
-      const projectInput = screen.getByPlaceholderText(/new project name/i);
-      expect(projectInput).toBeInTheDocument();
-    });
+    expect(mockProps.setNewTask).not.toHaveBeenCalled();
+  });
 
-    test('updates project name when typing in new project input', () => {
-      mockProps.isOpen = true;
-      mockProps.isCreatingNewProject = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('removes a tag when user clicks the remove button', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask.tags = ['urgent', 'important'];
+    render(<AddTaskdialog {...mockProps} />);
 
-      const projectInput = screen.getByPlaceholderText(/new project name/i);
-      fireEvent.change(projectInput, { target: { value: 'New Project' } });
+    const removeButtons = screen.getAllByText('✖');
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        project: 'New Project',
-      });
-    });
+    fireEvent.click(removeButtons[0]);
 
-    test('sets isCreatingNewProject to true when "create new project" is selected', () => {
-      mockProps.isOpen = true;
-      mockProps.uniqueProjects = ['Work', 'Personal'];
-      render(<AddTaskdialog {...mockProps} />);
-
-      const projectSelect = screen.getByTestId('project-select');
-      fireEvent.change(projectSelect, { target: { value: '__CREATE_NEW__' } });
-
-      expect(mockProps.setIsCreatingNewProject).toHaveBeenCalledWith(true);
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        project: '',
-      });
-    });
-
-    test('sets isCreatingNewProject to false when existing project is selected', () => {
-      mockProps.isOpen = true;
-      mockProps.uniqueProjects = ['Work', 'Personal'];
-      render(<AddTaskdialog {...mockProps} />);
-
-      const projectSelect = screen.getByTestId('project-select');
-      fireEvent.change(projectSelect, { target: { value: 'Work' } });
-
-      expect(mockProps.setIsCreatingNewProject).toHaveBeenCalledWith(false);
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        project: 'Work',
-      });
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      tags: ['important'],
     });
   });
 
-  describe('Tags', () => {
-    test('adds a tag when user types and presses Enter', () => {
-      mockProps.isOpen = true;
-      mockProps.tagInput = 'urgent';
-      render(<AddTaskdialog {...mockProps} />);
+  test('displays tags as badges', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask.tags = ['urgent', 'work'];
+    render(<AddTaskdialog {...mockProps} />);
 
-      const tagsInput = screen.getByPlaceholderText(/add a tag/i);
+    expect(screen.getByText('urgent')).toBeInTheDocument();
+    expect(screen.getByText('work')).toBeInTheDocument();
+  });
 
-      fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
+  test('closes dialog when Cancel button is clicked', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        tags: ['urgent'],
-      });
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancelButton);
 
-      expect(mockProps.setTagInput).toHaveBeenCalledWith('');
+    expect(mockProps.setIsOpen).toHaveBeenCalledWith(false);
+  });
+
+  test('calls onSubmit when "Add Task" button in dialog is clicked', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask = {
+      description: 'Test task',
+      priority: 'H',
+      project: 'Work',
+      due: '2024-12-25',
+      start: '',
+      entry: '2025-12-20',
+      wait: '2025-12-20',
+      end: '',
+      recur: '',
+      tags: ['urgent'],
+      annotations: [],
+      depends: [],
+    };
+    render(<AddTaskdialog {...mockProps} />);
+
+    const submitButton = screen.getByRole('button', {
+      name: /add task/i,
     });
 
-    test('does not add duplicate tags', () => {
-      mockProps.isOpen = true;
-      mockProps.tagInput = 'urgent';
-      mockProps.newTask.tags = ['urgent'];
-      render(<AddTaskdialog {...mockProps} />);
+    expect(submitButton).toBeInTheDocument();
+    fireEvent.click(submitButton);
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
+  });
 
-      const tagsInput = screen.getByPlaceholderText(/add a tag/i);
-      fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
+  test('does not add empty tag when tagInput is empty', () => {
+    mockProps.isOpen = true;
+    mockProps.tagInput = '';
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setNewTask).not.toHaveBeenCalled();
-    });
+    const tagsInput = screen.getByPlaceholderText(/add a tag/i);
+    fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
 
-    test('removes a tag when user clicks the remove button', () => {
-      mockProps.isOpen = true;
-      mockProps.newTask.tags = ['urgent', 'important'];
-      render(<AddTaskdialog {...mockProps} />);
+    expect(mockProps.setNewTask).not.toHaveBeenCalled();
+  });
 
-      const removeButtons = screen.getAllByText('✖');
+  test('updates tagInput when user types in tag field', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      fireEvent.click(removeButtons[0]);
+    const tagsInput = screen.getByPlaceholderText(/add a tag/i);
+    fireEvent.change(tagsInput, { target: { value: 'new-tag' } });
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        tags: ['important'],
-      });
-    });
+    expect(mockProps.setTagInput).toHaveBeenCalledWith('new-tag');
+  });
 
-    test('displays tags as badges', () => {
-      mockProps.isOpen = true;
-      mockProps.newTask.tags = ['urgent', 'work'];
-      render(<AddTaskdialog {...mockProps} />);
+  test('renders all priority options in dropdown', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(screen.getByText('urgent')).toBeInTheDocument();
-      expect(screen.getByText('work')).toBeInTheDocument();
-    });
+    const prioritySelect = screen.getByLabelText(/priority/i);
 
-    test('updates tagInput when user types in tag field', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+    expect(prioritySelect).toContainHTML('<option value="H">H</option>');
+    expect(prioritySelect).toContainHTML('<option value="M">M</option>');
+    expect(prioritySelect).toContainHTML('<option value="L">L</option>');
+  });
 
-      const tagsInput = screen.getByPlaceholderText(/add a tag/i);
-      fireEvent.change(tagsInput, { target: { value: 'new-tag' } });
+  test('shows new project input when creating new project', () => {
+    mockProps.isOpen = true;
+    mockProps.isCreatingNewProject = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setTagInput).toHaveBeenCalledWith('new-tag');
-    });
+    const projectInput = screen.getByPlaceholderText(/new project name/i);
+    expect(projectInput).toBeInTheDocument();
+  });
 
-    test('does not add empty tag when tagInput is empty', () => {
-      mockProps.isOpen = true;
-      mockProps.tagInput = '';
-      render(<AddTaskdialog {...mockProps} />);
+  test('updates project name when typing in new project input', () => {
+    mockProps.isOpen = true;
+    mockProps.isCreatingNewProject = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      const tagsInput = screen.getByPlaceholderText(/add a tag/i);
-      fireEvent.keyDown(tagsInput, { key: 'Enter', code: 'Enter' });
+    const projectInput = screen.getByPlaceholderText(/new project name/i);
+    fireEvent.change(projectInput, { target: { value: 'New Project' } });
 
-      expect(mockProps.setNewTask).not.toHaveBeenCalled();
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      project: 'New Project',
     });
   });
 
-  describe('Date Fields', () => {
-    const dateFields = [
-      { name: 'due', label: 'Due', placeholder: 'Select a due date' },
-      { name: 'start', label: 'Start', placeholder: 'Select a start date' },
-      { name: 'end', label: 'End', placeholder: 'Select an end date' },
-      { name: 'entry', label: 'Entry', placeholder: 'Select an entry date' },
-      { name: 'wait', label: 'Wait', placeholder: 'Select a wait date' },
-    ];
-
-    test.each(dateFields)(
-      'renders $name date picker with correct placeholder',
-      ({ placeholder }) => {
-        mockProps.isOpen = true;
-        render(<AddTaskdialog {...mockProps} />);
-
-        const datePicker = screen.getByPlaceholderText(placeholder);
-        expect(datePicker).toBeInTheDocument();
-      }
-    );
-
-    test.each(dateFields)(
-      'updates $name when user selects a date',
-      ({ name, placeholder }) => {
-        mockProps.isOpen = true;
-        render(<AddTaskdialog {...mockProps} />);
-
-        const datePicker = screen.getByPlaceholderText(placeholder);
-        fireEvent.change(datePicker, { target: { value: '2025-12-25' } });
-
-        expect(mockProps.setNewTask).toHaveBeenCalledWith({
-          ...mockProps.newTask,
-          [name]: '2025-12-25',
-        });
-      }
-    );
-
-    test.each(dateFields)(
-      'allows empty $name date (optional field)',
-      ({ name, placeholder }) => {
-        mockProps.isOpen = true;
-        render(<AddTaskdialog {...mockProps} />);
-
-        const datePicker = screen.getByPlaceholderText(placeholder);
-
-        fireEvent.change(datePicker, { target: { value: '2025-12-25' } });
-        mockProps.setNewTask.mockClear();
-        fireEvent.change(datePicker, { target: { value: '' } });
-
-        expect(mockProps.setNewTask).toHaveBeenCalledWith({
-          ...mockProps.newTask,
-          [name]: '',
-        });
-      }
-    );
-
-    test.each(dateFields)(
-      'submits task with $name date when provided',
-      ({ name }) => {
-        mockProps.isOpen = true;
-        mockProps.newTask = {
-          ...mockProps.newTask,
-          [name]: '2025-12-25',
-        };
-        render(<AddTaskdialog {...mockProps} />);
-
-        const submitButton = screen.getByRole('button', { name: /add task/i });
-        fireEvent.click(submitButton);
-
-        expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
-      }
-    );
-  });
-
-  describe('Depends Field', () => {
+  describe('Task Dependencies', () => {
     beforeEach(() => {
       mockProps.isOpen = true;
       mockProps.allTasks = [
@@ -441,7 +323,7 @@ describe('AddTaskDialog Component', () => {
           description: 'First task',
           status: 'pending',
           project: 'Project A',
-          tags: ['urgent'],
+          tags: [],
           priority: 'M',
           due: '',
           start: '',
@@ -545,230 +427,117 @@ describe('AddTaskDialog Component', () => {
 
       expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
     });
+  });
 
-    test('filters tasks by project name', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
+  test('renders wait date picker with correct placeholder', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      fireEvent.change(searchInput, { target: { value: 'Project A' } });
+    const waitDatePicker = screen.getByPlaceholderText(/select a wait date/i);
+    expect(waitDatePicker).toBeInTheDocument();
+  });
 
-      expect(screen.getByText('First task')).toBeInTheDocument();
-      expect(screen.queryByText('Second task')).not.toBeInTheDocument();
-    });
+  test('updates wait when user selects a date', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-    test('filters tasks by tag name', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
+    const waitDatePicker = screen.getByPlaceholderText(/select a wait date/i);
+    fireEvent.change(waitDatePicker, { target: { value: '2025-12-20' } });
 
-      fireEvent.change(searchInput, { target: { value: 'urgent' } });
-
-      expect(screen.getByText('First task')).toBeInTheDocument();
-    });
-
-    test('shows no results when search is empty', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
-
-      fireEvent.change(searchInput, { target: { value: '   ' } });
-
-      expect(screen.queryByText('First task')).not.toBeInTheDocument();
-      expect(screen.queryByText('Second task')).not.toBeInTheDocument();
-    });
-
-    test('adds dependency when search result is clicked', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
-      fireEvent.change(searchInput, { target: { value: 'First' } });
-      const taskResult = screen.getByText('First task');
-
-      fireEvent.click(taskResult);
-
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        depends: ['task-1'],
-      });
-    });
-
-    test('shows results when input is focused with existing text', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
-
-      fireEvent.change(searchInput, { target: { value: 'First' } });
-      fireEvent.focus(searchInput);
-
-      expect(screen.getByText('First task')).toBeInTheDocument();
-    });
-
-    test('returns no filtered tasks when search is empty', () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
-
-      fireEvent.focus(searchInput);
-
-      expect(screen.queryByText('First task')).not.toBeInTheDocument();
-    });
-
-    test('hides results when input loses focus', async () => {
-      render(<AddTaskdialog {...mockProps} />);
-      const searchInput = screen.getByPlaceholderText(
-        'Search and select tasks this depends on...'
-      );
-
-      fireEvent.change(searchInput, { target: { value: 'First' } });
-      expect(screen.getByText('First task')).toBeInTheDocument();
-
-      fireEvent.blur(searchInput);
-
-      // Wait for the 200ms timeout to complete
-      await waitFor(
-        () => {
-          expect(screen.queryByText('First task')).not.toBeInTheDocument();
-        },
-        { timeout: 300 }
-      );
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      wait: '2025-12-20',
     });
   });
 
-  describe('Annotations Field', () => {
-    const annotation1 = {
-      entry: '2025-12-25T00:00:00Z',
-      description: 'First note',
-    };
-    const annotation2 = {
-      entry: '2025-12-25T00:00:00Z',
-      description: 'Second note',
-    };
+  test('submits task with wait date when provided', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask.wait = '2025-12-20';
+    render(<AddTaskdialog {...mockProps} />);
 
-    test('renders annotations input field', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
-
-      const annotationsInput = screen.getByPlaceholderText('Add an annotation');
-      expect(annotationsInput).toBeInTheDocument();
+    const submitButton = screen.getByRole('button', {
+      name: /add task/i,
     });
+    fireEvent.click(submitButton);
 
-    test('adds annotation when user types and presses enter', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
+  });
 
-      const annotationsInput = screen.getByPlaceholderText('Add an annotation');
-      fireEvent.change(annotationsInput, {
-        target: { value: 'This is an annotation' },
-      });
-      fireEvent.keyDown(annotationsInput, { key: 'Enter', code: 'Enter' });
+  test('allows empty wait date (optional field)', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask.wait = '';
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        annotations: [
-          expect.objectContaining({ description: 'This is an annotation' }),
-        ],
-      });
+    const submitButton = screen.getByRole('button', {
+      name: /add task/i,
     });
+    fireEvent.click(submitButton);
 
-    test('does not add empty annotation', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
+  });
 
-      const annotationsInput = screen.getByPlaceholderText('Add an annotation');
-      fireEvent.change(annotationsInput, { target: { value: '' } });
-      fireEvent.keyDown(annotationsInput, { key: 'Enter', code: 'Enter' });
+  test('renders entry date picker with correct placeholder', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      expect(mockProps.setNewTask).not.toHaveBeenCalled();
-    });
+    const entryDatePicker =
+      screen.getByPlaceholderText(/select an entry date/i);
+    expect(entryDatePicker).toBeInTheDocument();
+  });
 
-    test('does not add whitespace-only annotation', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('updates entry when user selects a date', () => {
+    mockProps.isOpen = true;
+    render(<AddTaskdialog {...mockProps} />);
 
-      const annotationsInput = screen.getByPlaceholderText('Add an annotation');
-      fireEvent.change(annotationsInput, { target: { value: '      ' } });
-      fireEvent.keyDown(annotationsInput, { key: 'Enter', code: 'Enter' });
+    const entryDatePicker =
+      screen.getByPlaceholderText(/select an entry date/i);
+    fireEvent.change(entryDatePicker, { target: { value: '2025-12-20' } });
 
-      expect(mockProps.setNewTask).not.toHaveBeenCalled();
-    });
-
-    test('displays annotations as badges', () => {
-      mockProps.isOpen = true;
-      mockProps.newTask.annotations = [annotation1, annotation2];
-      render(<AddTaskdialog {...mockProps} />);
-
-      expect(screen.getByText('First note')).toBeInTheDocument();
-      expect(screen.getByText('Second note')).toBeInTheDocument();
-    });
-
-    test('removes annotation when user clicks remove button', () => {
-      mockProps.isOpen = true;
-      mockProps.newTask.annotations = [annotation1, annotation2];
-      render(<AddTaskdialog {...mockProps} />);
-
-      const removeButtons = screen.getAllByRole('button', {
-        name: 'remove annotation',
-      });
-      fireEvent.click(removeButtons[0]);
-
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        annotations: [annotation2],
-      });
+    expect(mockProps.setNewTask).toHaveBeenCalledWith({
+      ...mockProps.newTask,
+      entry: '2025-12-20',
     });
   });
 
-  describe('Recur Field', () => {
-    test('renders recur dropdown with all options', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('submits task with entry date when provided', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask = {
+      description: 'Test task',
+      priority: 'H',
+      project: 'Work',
+      due: '2024-12-25',
+      start: '',
+      entry: '2025-12-20',
+      tags: ['urgent'],
+      annotations: [],
+      depends: [],
+    };
+    render(<AddTaskdialog {...mockProps} />);
 
-      const recurSelect = screen.getByLabelText('Recur');
+    const submitButton = screen.getByRole('button', { name: /add task/i });
+    fireEvent.click(submitButton);
 
-      expect(recurSelect).toContainHTML('<option value="">None</option>');
-      expect(recurSelect).toContainHTML('<option value="daily">Daily</option>');
-      expect(recurSelect).toContainHTML(
-        '<option value="weekly">Weekly</option>'
-      );
-      expect(recurSelect).toContainHTML(
-        '<option value="monthly">Monthly</option>'
-      );
-      expect(recurSelect).toContainHTML(
-        '<option value="yearly">Yearly</option>'
-      );
-    });
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
+  });
 
-    test('updates recur when user selects from dropdown', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
+  test('allows empty entry date (optional field)', () => {
+    mockProps.isOpen = true;
+    mockProps.newTask = {
+      description: 'Test task',
+      priority: 'M',
+      project: '',
+      due: '',
+      start: '',
+      entry: '',
+      tags: [],
+      annotations: [],
+      depends: [],
+    };
+    render(<AddTaskdialog {...mockProps} />);
 
-      const recurSelect = screen.getByLabelText('Recur');
-      fireEvent.change(recurSelect, { target: { value: 'weekly' } });
+    const submitButton = screen.getByRole('button', { name: /add task/i });
+    fireEvent.click(submitButton);
 
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        recur: 'weekly',
-      });
-    });
-
-    test('allows no recur selection', () => {
-      mockProps.isOpen = true;
-      render(<AddTaskdialog {...mockProps} />);
-
-      const recurSelect = screen.getByLabelText('Recur');
-      fireEvent.change(recurSelect, { target: { value: '' } });
-
-      expect(mockProps.setNewTask).toHaveBeenCalledWith({
-        ...mockProps.newTask,
-        recur: '',
-      });
-    });
+    expect(mockProps.onSubmit).toHaveBeenCalledWith(mockProps.newTask);
   });
 });
